@@ -404,6 +404,20 @@ export default {
     if (url.pathname === '/preview-weekly') return await previewWeeklyReport(env);
     if (url.pathname === '/preview-monthly') return await previewMonthlyReport(env);
 
+    // Send test endpoints
+    if (url.pathname === '/send-daily') {
+      await sendDailyReport(env);
+      return new Response('Daily report sent to Slack!', { status: 200 });
+    }
+    if (url.pathname === '/send-weekly') {
+      await sendWeeklyReport(env);
+      return new Response('Weekly report sent to Slack!', { status: 200 });
+    }
+    if (url.pathname === '/send-monthly') {
+      await sendMonthlyReport(env);
+      return new Response('Monthly report sent to Slack!', { status: 200 });
+    }
+
     return new Response('Marketing Slack Bot', { status: 200 });
   },
 
