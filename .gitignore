@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+worker/node_modules/
+
+# Environment files with secrets
+.dev.vars
+*.env
+.env.*
+
+# Service account credentials
+triplewhale-slack-bot-*.json
+
+# Wrangler
+.wrangler/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build output
+dist/
+
+# Test files
+test-*.js
