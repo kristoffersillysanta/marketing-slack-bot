@@ -296,7 +296,7 @@ async function previewWeeklyReport(env: Env): Promise<Response> {
     const weekWeighted = calculateWeightedTotals(weekCountries);
 
     trend.push({
-      period: `Uke ${weekNum}`,
+      period: `Week ${weekNum}`,
       revenue: weekWeighted.totalRevenue,
       spend: weekWeighted.totalSpend,
       mer: weekWeighted.weightedMER,

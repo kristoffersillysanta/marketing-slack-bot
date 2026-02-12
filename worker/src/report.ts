@@ -68,7 +68,7 @@ export function generateDailyReport(data: DailyReportData): string {
   }
 
   // Info footer
-  report += '_💡 ROAS is channel-reported (platform's own numbers). Pixel ROAS updated in weekly._\n';
+  report += `_💡 ROAS is channel-reported (platform's own numbers). Pixel ROAS updated in weekly._\n`;
 
   // No-spend warning
   if (data.noSpendCountries.length > 0) {
