@@ -192,10 +192,10 @@ export function formatChannelBreakdownInline(countries: CountryMarketingMetrics[
 export function formatChannelTable(country: CountryMarketingMetrics, includeNcOrders: boolean = false): string {
   if (country.channels.length === 0) return '';
 
-  let table = `🔍 Kanaler — ${country.shop.code}\n\n`;
+  let table = '';
 
   // Header
-  let header = `${padRight('Kanal', 10)} ${padLeft('Spend', 10)}  ${padLeft('ROAS (pixel)', 14)}  ${padLeft('ROAS (ch)', 11)}  ${padLeft('NC ROAS', 9)}`;
+  let header = `${padRight('Channel', 10)} ${padLeft('Spend', 10)}  ${padLeft('ROAS (pixel)', 14)}  ${padLeft('ROAS (ch)', 11)}  ${padLeft('NC ROAS', 9)}`;
   if (includeNcOrders) {
     header += `  ${padLeft('NC Orders', 10)}`;
   }
@@ -236,7 +236,7 @@ export function formatChannelTable(country: CountryMarketingMetrics, includeNcOr
 export function formatTrendTable(trends: TrendData[], type: 'weekly' | 'monthly'): string {
   if (trends.length === 0) return '';
 
-  let table = '📈 Trend\n\n';
+  let table = '';
 
   const header = `${padRight('', 12)} ${padLeft('Revenue', 12)}  ${padLeft('Spend', 10)}  ${padLeft('MER', 7)}  ${padLeft('NC %', 7)}  ${padLeft('vs LY', 9)}`;
   table += header + '\n';
@@ -274,8 +274,8 @@ export function formatDateRange(startDate: Date, endDate: Date): string {
 }
 
 const MONTH_NAMES = [
-  'Januar', 'Februar', 'Mars', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Desember'
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
 export function getMonthName(month: number): string {
