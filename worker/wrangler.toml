@@ -1,0 +1,21 @@
+name = "marketing-slack-bot"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[triggers]
+# Schedule (UTC → Norwegian time):
+# - Daily: Tue-Fri 07:00 UTC = 08:00 CET / 09:00 CEST
+# - Weekly: Mon 07:00 UTC = 08:00 CET / 09:00 CEST
+# - Monthly: 1st of month 08:00 UTC = 09:00 CET / 10:00 CEST
+crons = ["0 7 * * TUE-FRI", "0 7 * * MON", "0 8 1 * *"]
+
+[vars]
+# Non-sensitive config
+TIMEZONE = "Europe/Oslo"
+
+# Secrets (set via wrangler secret put):
+# - SLACK_WEBHOOK_URL_MARKETING
+# - GOOGLE_SERVICE_ACCOUNT (full JSON from service account file)
+
+[observability]
+enabled = true
