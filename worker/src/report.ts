@@ -53,7 +53,7 @@ export function generateDailyReport(data: DailyReportData): string {
   let report = '';
 
   // Header
-  report += `*DAILY MARKETING REPORT*\n`;
+  report += `*🚀 DAILY MARKETING REPORT*\n`;
   report += `_${formatDate(data.date)}_\n\n`;
 
   // Context message
@@ -67,7 +67,8 @@ export function generateDailyReport(data: DailyReportData): string {
 
   // Channel breakdown (inline with Channel ROAS only)
   if (data.countries.some(c => c.channels.length > 0)) {
-    report += '*📊 CHANNEL BREAKDOWN*\n\n';
+    report += '*📊 CHANNEL BREAKDOWN*\n';
+    report += '_Market · Channel Spend · Channel ROAS · Share of spend (only markets and channels with spend)_\n\n';
     report += '```\n';
     report += formatChannelBreakdownInline(data.countries) + '\n';
     report += '```\n\n';
@@ -108,7 +109,7 @@ export function generateWeeklyReport(data: WeeklyReportData): string[] {
   let report = '';
 
   // Header
-  report += `*WEEKLY MARKETING REPORT*\n`;
+  report += `*🚀 WEEKLY MARKETING REPORT*\n`;
   report += `_Week ${data.weekNumber}, ${data.year} — ${formatDateRange(data.startDate, data.endDate)}_\n\n`;
 
   // Context message
@@ -183,7 +184,7 @@ export function generateMonthlyReport(data: MonthlyReportData): string[] {
 
   // Header
   const monthName = getMonthName(data.month);
-  report += `*MONTHLY MARKETING REPORT*\n`;
+  report += `*🚀 MONTHLY MARKETING REPORT*\n`;
   report += `_${monthName} ${data.year}_\n\n`;
 
   // Context message
