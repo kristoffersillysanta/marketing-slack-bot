@@ -22,9 +22,10 @@ export interface ChannelMetrics {
 export interface CountryMarketingMetrics {
   shop: Shop;
   revenue: number;              // NOK, ex-VAT
-  revenueYoY: number | null;    // Year-over-year comparison (%)
+  revenueYoY: number | null;    // Previous year revenue (NOK), for YoY calc
   spend: number;                // NOK
-  mer: number;                  // revenue / spend (before refunds)
+  roas: number;                 // revenue / spend (overall)
+  ncRoas: number;               // nc_revenue / spend (overall)
   ncPercent: number;            // new_customer_orders / orders × 100
   orders: number;
   aov: number;                  // revenue / orders
@@ -72,12 +73,28 @@ export interface PeriodMarketingMetrics {
 // =============================================================================
 
 export interface TrendData {
-  period: string;               // e.g., "Uke 4" or "Januar"
+  period: string;               // e.g., "Week 4" or "January"
   revenue: number;
   spend: number;
-  mer: number;
+  roas: number;
+  ncRoas: number;
   ncPercent: number;
   vsLY: number | null;
+}
+
+export interface PacingData {
+  label: string;                // e.g., "Mon–Wed" or "Feb 1–9"
+  countries: CountryMarketingMetrics[];
+  totals: {
+    revenue: number;
+    spend: number;
+    roas: number;
+    ncRoas: number;
+    ncPercent: number;
+    orders: number;
+    aov: number;
+    vsLY: number | null;
+  };
 }
 
 export interface DailyReportData {
@@ -86,13 +103,15 @@ export interface DailyReportData {
   totals: {
     revenue: number;
     spend: number;
-    mer: number;
+    roas: number;
+    ncRoas: number;
     ncPercent: number;
     orders: number;
     aov: number;
     vsLY: number | null;
   };
   noSpendCountries: string[];   // Country codes with zero spend
+  wtd?: PacingData;             // Week-to-date (Wed-Fri only)
 }
 
 export interface WeeklyReportData {
@@ -104,7 +123,8 @@ export interface WeeklyReportData {
   totals: {
     revenue: number;
     spend: number;
-    mer: number;
+    roas: number;
+    ncRoas: number;
     ncPercent: number;
     orders: number;
     aov: number;
@@ -113,6 +133,7 @@ export interface WeeklyReportData {
   trend: TrendData[];           // Last 3 weeks
   noSpendCountries: string[];
   pixelDataIncomplete: boolean; // True if endDate is within 3 days
+  mtd?: PacingData;             // Month-to-date (2nd+ week of month)
 }
 
 export interface MonthlyReportData {
@@ -122,7 +143,8 @@ export interface MonthlyReportData {
   totals: {
     revenue: number;
     spend: number;
-    mer: number;
+    roas: number;
+    ncRoas: number;
     ncPercent: number;
     orders: number;
     aov: number;

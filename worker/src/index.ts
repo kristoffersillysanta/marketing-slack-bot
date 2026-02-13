@@ -8,12 +8,14 @@ import {
   getPreviousMonthPeriod,
   getSameMonthLastYear,
   getMonthPeriod,
+  getWTDPeriod,
+  getMTDPeriod,
 } from './triplewhale';
 import { sendReport } from './slack';
 import { loadAllMarketingData, getAllCountryMetrics, getCountriesWithoutSpend } from './data';
-import { calculateWeightedTotals, calculateYoY, isPixelDataIncomplete, aggregatePeriodMetrics, getChannelMetrics } from './metrics';
+import { calculateWeightedTotals, isPixelDataIncomplete } from './metrics';
 import { generateDailyReport, generateWeeklyReport, generateMonthlyReport } from './report';
-import { DailyReportData, WeeklyReportData, MonthlyReportData, TrendData } from './types';
+import { DailyReportData, WeeklyReportData, MonthlyReportData, TrendData, CountryMarketingMetrics } from './types';
 import { ServiceAccountCredentials } from './sheets';
 import { getMonthName } from './formatting';
 
@@ -30,6 +32,19 @@ function getGoogleCredentials(env: Env): ServiceAccountCredentials {
     client_email: creds.client_email,
     private_key: creds.private_key,
   };
+}
+
+// Calculate total previous year revenue from countries (for YoY on TOTAL row)
+function getTotalPrevYearRevenue(countries: CountryMarketingMetrics[]): number | null {
+  const total = countries.reduce((sum, c) => sum + (c.revenueYoY ?? 0), 0);
+  return total > 0 ? total : null;
+}
+
+// Send multiple Slack messages sequentially
+async function sendMessages(webhookUrl: string, messages: string[]): Promise<void> {
+  for (const msg of messages) {
+    await sendReport(webhookUrl, msg);
+  }
 }
 
 // =============================================================================
@@ -68,14 +83,42 @@ async function sendDailyReport(env: Env): Promise<void> {
     totals: {
       revenue: weighted.totalRevenue,
       spend: weighted.totalSpend,
-      mer: weighted.weightedMER,
+      roas: weighted.weightedROAS,
+      ncRoas: weighted.weightedNCROAS,
       ncPercent: weighted.weightedNCPercent,
       orders: weighted.totalOrders,
       aov: weighted.weightedAOV,
-      vsLY: null, // TODO: Calculate YoY for totals
+      vsLY: getTotalPrevYearRevenue(countries),
     },
     noSpendCountries,
   };
+
+  // WTD: only Wed-Fri (today is the day the report runs, yesterday is the data day)
+  const today = new Date();
+  const todayDayOfWeek = today.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri
+  if (todayDayOfWeek >= 3 && todayDayOfWeek <= 5) {
+    const yesterday = new Date(yesterdayPeriod + 'T00:00:00');
+    const wtdPeriod = getWTDPeriod(yesterday);
+    console.log(`WTD: ${wtdPeriod.start} to ${wtdPeriod.end} (${wtdPeriod.label})`);
+
+    const wtdCountries = getAllCountryMetrics(allData, wtdPeriod.start, wtdPeriod.end, wtdPeriod.yoyStart, wtdPeriod.yoyEnd, false);
+    const wtdWeighted = calculateWeightedTotals(wtdCountries);
+
+    reportData.wtd = {
+      label: wtdPeriod.label,
+      countries: wtdCountries,
+      totals: {
+        revenue: wtdWeighted.totalRevenue,
+        spend: wtdWeighted.totalSpend,
+        roas: wtdWeighted.weightedROAS,
+        ncRoas: wtdWeighted.weightedNCROAS,
+        ncPercent: wtdWeighted.weightedNCPercent,
+        orders: wtdWeighted.totalOrders,
+        aov: wtdWeighted.weightedAOV,
+        vsLY: getTotalPrevYearRevenue(wtdCountries),
+      },
+    };
+  }
 
   const report = generateDailyReport(reportData);
   await sendReport(env.SLACK_WEBHOOK_URL_MARKETING, report);
@@ -126,9 +169,10 @@ async function sendWeeklyReport(env: Env): Promise<void> {
       period: `Uke ${weekNum}`,
       revenue: weekWeighted.totalRevenue,
       spend: weekWeighted.totalSpend,
-      mer: weekWeighted.weightedMER,
+      roas: weekWeighted.weightedROAS,
+      ncRoas: weekWeighted.weightedNCROAS,
       ncPercent: weekWeighted.weightedNCPercent,
-      vsLY: null, // TODO: Calculate YoY
+      vsLY: getTotalPrevYearRevenue(weekCountries),
     });
   }
 
@@ -141,19 +185,45 @@ async function sendWeeklyReport(env: Env): Promise<void> {
     totals: {
       revenue: weighted.totalRevenue,
       spend: weighted.totalSpend,
-      mer: weighted.weightedMER,
+      roas: weighted.weightedROAS,
+      ncRoas: weighted.weightedNCROAS,
       ncPercent: weighted.weightedNCPercent,
       orders: weighted.totalOrders,
       aov: weighted.weightedAOV,
-      vsLY: null, // TODO: Calculate YoY
+      vsLY: getTotalPrevYearRevenue(countries),
     },
     trend,
     noSpendCountries,
     pixelDataIncomplete: isPixelDataIncomplete(weekPeriod.end),
   };
 
-  const report = generateWeeklyReport(reportData);
-  await sendReport(env.SLACK_WEBHOOK_URL_MARKETING, report);
+  // MTD: skip when month started on the same Monday as the reported week
+  const lastWeekSunday = new Date(weekPeriod.end + 'T00:00:00');
+  const mtdPeriod = getMTDPeriod(lastWeekSunday);
+  if (mtdPeriod.start !== weekPeriod.start) {
+    console.log(`MTD: ${mtdPeriod.start} to ${mtdPeriod.end} (${mtdPeriod.label})`);
+
+    const mtdCountries = getAllCountryMetrics(allData, mtdPeriod.start, mtdPeriod.end, mtdPeriod.yoyStart, mtdPeriod.yoyEnd, false);
+    const mtdWeighted = calculateWeightedTotals(mtdCountries);
+
+    reportData.mtd = {
+      label: mtdPeriod.label,
+      countries: mtdCountries,
+      totals: {
+        revenue: mtdWeighted.totalRevenue,
+        spend: mtdWeighted.totalSpend,
+        roas: mtdWeighted.weightedROAS,
+        ncRoas: mtdWeighted.weightedNCROAS,
+        ncPercent: mtdWeighted.weightedNCPercent,
+        orders: mtdWeighted.totalOrders,
+        aov: mtdWeighted.weightedAOV,
+        vsLY: getTotalPrevYearRevenue(mtdCountries),
+      },
+    };
+  }
+
+  const messages = generateWeeklyReport(reportData);
+  await sendMessages(env.SLACK_WEBHOOK_URL_MARKETING, messages);
   console.log('Weekly report sent!');
 }
 
@@ -213,9 +283,10 @@ async function sendMonthlyReport(env: Env): Promise<void> {
       period: getMonthName(month + 1),
       revenue: monthWeighted.totalRevenue,
       spend: monthWeighted.totalSpend,
-      mer: monthWeighted.weightedMER,
+      roas: monthWeighted.weightedROAS,
+      ncRoas: monthWeighted.weightedNCROAS,
       ncPercent: monthWeighted.weightedNCPercent,
-      vsLY: null, // TODO: Calculate YoY
+      vsLY: getTotalPrevYearRevenue(monthCountries),
     });
   }
 
@@ -226,18 +297,19 @@ async function sendMonthlyReport(env: Env): Promise<void> {
     totals: {
       revenue: weighted.totalRevenue,
       spend: weighted.totalSpend,
-      mer: weighted.weightedMER,
+      roas: weighted.weightedROAS,
+      ncRoas: weighted.weightedNCROAS,
       ncPercent: weighted.weightedNCPercent,
       orders: weighted.totalOrders,
       aov: weighted.weightedAOV,
-      vsLY: null, // TODO: Calculate YoY
+      vsLY: getTotalPrevYearRevenue(countries),
     },
     trend,
     noSpendCountries,
   };
 
-  const report = generateMonthlyReport(reportData);
-  await sendReport(env.SLACK_WEBHOOK_URL_MARKETING, report);
+  const messages = generateMonthlyReport(reportData);
+  await sendMessages(env.SLACK_WEBHOOK_URL_MARKETING, messages);
   console.log('Monthly report sent!');
 }
 
@@ -262,13 +334,34 @@ async function previewDailyReport(env: Env): Promise<Response> {
     totals: {
       revenue: weighted.totalRevenue,
       spend: weighted.totalSpend,
-      mer: weighted.weightedMER,
+      roas: weighted.weightedROAS,
+      ncRoas: weighted.weightedNCROAS,
       ncPercent: weighted.weightedNCPercent,
       orders: weighted.totalOrders,
       aov: weighted.weightedAOV,
-      vsLY: null,
+      vsLY: getTotalPrevYearRevenue(countries),
     },
     noSpendCountries,
+  };
+
+  // Always show WTD in preview (regardless of day)
+  const yesterday = new Date(yesterdayPeriod + 'T00:00:00');
+  const wtdPeriod = getWTDPeriod(yesterday);
+  const wtdCountries = getAllCountryMetrics(allData, wtdPeriod.start, wtdPeriod.end, wtdPeriod.yoyStart, wtdPeriod.yoyEnd, false);
+  const wtdWeighted = calculateWeightedTotals(wtdCountries);
+  reportData.wtd = {
+    label: wtdPeriod.label,
+    countries: wtdCountries,
+    totals: {
+      revenue: wtdWeighted.totalRevenue,
+      spend: wtdWeighted.totalSpend,
+      roas: wtdWeighted.weightedROAS,
+      ncRoas: wtdWeighted.weightedNCROAS,
+      ncPercent: wtdWeighted.weightedNCPercent,
+      orders: wtdWeighted.totalOrders,
+      aov: wtdWeighted.weightedAOV,
+      vsLY: getTotalPrevYearRevenue(wtdCountries),
+    },
   };
 
   const report = generateDailyReport(reportData);
@@ -299,9 +392,10 @@ async function previewWeeklyReport(env: Env): Promise<Response> {
       period: `Week ${weekNum}`,
       revenue: weekWeighted.totalRevenue,
       spend: weekWeighted.totalSpend,
-      mer: weekWeighted.weightedMER,
+      roas: weekWeighted.weightedROAS,
+      ncRoas: weekWeighted.weightedNCROAS,
       ncPercent: weekWeighted.weightedNCPercent,
-      vsLY: null,
+      vsLY: getTotalPrevYearRevenue(weekCountries),
     });
   }
 
@@ -314,19 +408,42 @@ async function previewWeeklyReport(env: Env): Promise<Response> {
     totals: {
       revenue: weighted.totalRevenue,
       spend: weighted.totalSpend,
-      mer: weighted.weightedMER,
+      roas: weighted.weightedROAS,
+      ncRoas: weighted.weightedNCROAS,
       ncPercent: weighted.weightedNCPercent,
       orders: weighted.totalOrders,
       aov: weighted.weightedAOV,
-      vsLY: null,
+      vsLY: getTotalPrevYearRevenue(countries),
     },
     trend,
     noSpendCountries,
     pixelDataIncomplete: isPixelDataIncomplete(weekPeriod.end),
   };
 
-  const report = generateWeeklyReport(reportData);
-  return new Response(report, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  // Always show MTD in preview (regardless of week position)
+  const previewSunday = new Date(weekPeriod.end + 'T00:00:00');
+  const mtdPeriod = getMTDPeriod(previewSunday);
+  if (mtdPeriod.start !== weekPeriod.start) {
+    const mtdCountries = getAllCountryMetrics(allData, mtdPeriod.start, mtdPeriod.end, mtdPeriod.yoyStart, mtdPeriod.yoyEnd, false);
+    const mtdWeighted = calculateWeightedTotals(mtdCountries);
+    reportData.mtd = {
+      label: mtdPeriod.label,
+      countries: mtdCountries,
+      totals: {
+        revenue: mtdWeighted.totalRevenue,
+        spend: mtdWeighted.totalSpend,
+        roas: mtdWeighted.weightedROAS,
+        ncRoas: mtdWeighted.weightedNCROAS,
+        ncPercent: mtdWeighted.weightedNCPercent,
+        orders: mtdWeighted.totalOrders,
+        aov: mtdWeighted.weightedAOV,
+        vsLY: getTotalPrevYearRevenue(mtdCountries),
+      },
+    };
+  }
+
+  const messages = generateWeeklyReport(reportData);
+  return new Response(messages.join('\n\n---\n\n'), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
 
 async function previewMonthlyReport(env: Env): Promise<Response> {
@@ -364,9 +481,10 @@ async function previewMonthlyReport(env: Env): Promise<Response> {
       period: getMonthName(month + 1),
       revenue: monthWeighted.totalRevenue,
       spend: monthWeighted.totalSpend,
-      mer: monthWeighted.weightedMER,
+      roas: monthWeighted.weightedROAS,
+      ncRoas: monthWeighted.weightedNCROAS,
       ncPercent: monthWeighted.weightedNCPercent,
-      vsLY: null,
+      vsLY: getTotalPrevYearRevenue(monthCountries),
     });
   }
 
@@ -377,18 +495,19 @@ async function previewMonthlyReport(env: Env): Promise<Response> {
     totals: {
       revenue: weighted.totalRevenue,
       spend: weighted.totalSpend,
-      mer: weighted.weightedMER,
+      roas: weighted.weightedROAS,
+      ncRoas: weighted.weightedNCROAS,
       ncPercent: weighted.weightedNCPercent,
       orders: weighted.totalOrders,
       aov: weighted.weightedAOV,
-      vsLY: null,
+      vsLY: getTotalPrevYearRevenue(countries),
     },
     trend,
     noSpendCountries,
   };
 
-  const report = generateMonthlyReport(reportData);
-  return new Response(report, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  const messages = generateMonthlyReport(reportData);
+  return new Response(messages.join('\n\n---\n\n'), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
 
 // =============================================================================

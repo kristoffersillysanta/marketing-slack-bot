@@ -150,8 +150,8 @@ async function readAllShopMetrics(
 
   if (!response.ok) {
     const error = await response.text();
-    console.error(`Failed to read sheet for ${shopCode}: ${error}`);
-    return [];
+    console.error(`❌ FAILED to read sheet for ${shopCode}: ${response.status} ${error}`);
+    throw new Error(`Failed to read sheet ${shopCode}: ${response.status}`);
   }
 
   const data = await response.json() as { values?: string[][] };

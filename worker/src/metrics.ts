@@ -83,7 +83,7 @@ export function aggregatePeriodMetrics(dailyMetrics: MarketingDailyMetrics[]): P
     spend,
     orders,
     newCustomerOrders,
-    mer: spend > 0 ? revenue / spend : null,
+    mer: revenue > 0 ? (spend / revenue) * 100 : null,
     ncPercent: orders > 0 ? (newCustomerOrders / orders) * 100 : null,
     aov: orders > 0 ? revenue / orders : null,
     metaSpend,
@@ -206,7 +206,7 @@ export function getChannelMetrics(
 
 /**
  * Calculate weighted totals across multiple countries
- * Weights MER, NC%, and AOV by revenue
+ * Weights ROAS, NC ROAS, NC%, and AOV by revenue
  * @param countries Array of country metrics
  * @returns Weighted totals
  */
@@ -214,7 +214,8 @@ export function calculateWeightedTotals(
   countries: Array<{
     revenue: number;
     spend: number;
-    mer: number;
+    roas: number;
+    ncRoas: number;
     ncPercent: number;
     orders: number;
     aov: number;
@@ -222,7 +223,8 @@ export function calculateWeightedTotals(
 ): {
   totalRevenue: number;
   totalSpend: number;
-  weightedMER: number;
+  weightedROAS: number;
+  weightedNCROAS: number;
   weightedNCPercent: number;
   weightedAOV: number;
   totalOrders: number;
@@ -238,13 +240,15 @@ export function calculateWeightedTotals(
   }
 
   // Weight by revenue
-  let weightedMERSum = 0;
+  let weightedROASSum = 0;
+  let weightedNCROASSum = 0;
   let weightedNCPercentSum = 0;
   let weightedAOVSum = 0;
 
   for (const country of countries) {
     const weight = totalRevenue > 0 ? country.revenue / totalRevenue : 0;
-    weightedMERSum += country.mer * weight;
+    weightedROASSum += country.roas * weight;
+    weightedNCROASSum += country.ncRoas * weight;
     weightedNCPercentSum += country.ncPercent * weight;
     weightedAOVSum += country.aov * weight;
   }
@@ -252,7 +256,8 @@ export function calculateWeightedTotals(
   return {
     totalRevenue,
     totalSpend,
-    weightedMER: weightedMERSum,
+    weightedROAS: weightedROASSum,
+    weightedNCROAS: weightedNCROASSum,
     weightedNCPercent: weightedNCPercentSum,
     weightedAOV: weightedAOVSum,
     totalOrders,

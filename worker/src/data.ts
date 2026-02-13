@@ -44,7 +44,7 @@ export function applyVatCorrection(allData: Map<string, MarketingDailyMetrics[]>
 /**
  * Load all marketing data from Google Sheets
  * @param credentials Google service account credentials
- * @returns Map of shop code to daily metrics (VAT-corrected)
+ * @returns Map of shop code to daily metrics (revenue INCLUDES VAT)
  */
 export async function loadAllMarketingData(
   credentials: ServiceAccountCredentials
@@ -52,8 +52,10 @@ export async function loadAllMarketingData(
   const shopCodes = SHOPS.map(s => s.code);
   const allData = await loadAllShopData(credentials, shopCodes);
 
-  // Apply VAT correction
-  applyVatCorrection(allData);
+  // NOTE: We do NOT apply VAT correction for marketing reports.
+  // Revenue is kept as gross (incl. VAT) to match Triple Whale and ad platforms.
+  // Spend is already ex-VAT (business expense).
+  // applyVatCorrection(allData);
 
   return allData;
 }
@@ -130,20 +132,39 @@ export function getCountryMetrics(
   const revenueNOK = current.revenue * shop.exchangeRateToNOK;
   const yoyRevenueNOK = yoy.revenue * shop.exchangeRateToNOK;
   const spendNOK = current.spend * shop.exchangeRateToNOK;
+  const aovNOK = (current.aov ?? 0) * shop.exchangeRateToNOK;
+
+  // Calculate total NC revenue (sum across all channels)
+  const totalNcRevenue = (
+    current.metaPixelNcRevenue +
+    current.googlePixelNcRevenue +
+    current.tiktokPixelNcRevenue
+  ) * shop.exchangeRateToNOK;
+
+  // Calculate ROAS metrics
+  const roas = spendNOK > 0 ? revenueNOK / spendNOK : 0;
+  const ncRoas = spendNOK > 0 ? totalNcRevenue / spendNOK : 0;
 
   // Get channel metrics (only channels with spend > 0)
   const channels = getChannelMetrics(current, includeNcOrders);
 
+  // Convert channel spend to NOK
+  const channelsNOK = channels.map(ch => ({
+    ...ch,
+    spend: ch.spend * shop.exchangeRateToNOK,
+  }));
+
   return {
     shop,
     revenue: revenueNOK,
-    revenueYoY: calculateYoY(revenueNOK, yoyRevenueNOK),
+    revenueYoY: yoyRevenueNOK > 0 ? yoyRevenueNOK : null,
     spend: spendNOK,
-    mer: current.mer ?? 0,
+    roas,
+    ncRoas,
     ncPercent: current.ncPercent ?? 0,
     orders: current.orders,
-    aov: current.aov ?? 0,
-    channels,
+    aov: aovNOK,
+    channels: channelsNOK,
   };
 }
 

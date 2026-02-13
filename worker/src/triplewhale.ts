@@ -21,16 +21,20 @@ export function getWeekNumber(date: Date): number {
   return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
-// Get same day last year
-export function getSameDayLastYear(date: Date): { start: string; end: string } {
+// Get same day last year (accepts YYYY-MM-DD string)
+export function getSameDayLastYear(dateStr: string): string {
+  const date = new Date(dateStr + 'T00:00:00');
   const lastYear = new Date(date);
   lastYear.setFullYear(lastYear.getFullYear() - 1);
-  const dateStr = formatLocalDate(lastYear);
-  return { start: dateStr, end: dateStr };
+  return formatLocalDate(lastYear);
 }
 
-// Get same week last year (ISO week)
-export function getSameWeekLastYear(weekNumber: number, currentYear: number): { start: string; end: string } {
+// Get same week last year (ISO week) - accepts YYYY-MM-DD string (any day in the week)
+export function getSameWeekLastYear(dateStr: string): { start: string; end: string } {
+  const date = new Date(dateStr + 'T00:00:00');
+  const weekNumber = getWeekNumber(date);
+  const currentYear = date.getFullYear();
+
   // Find the first day of the ISO week in the previous year
   const jan4 = new Date(currentYear - 1, 0, 4); // Jan 4 is always in week 1
   const dayOfWeek = jan4.getDay() || 7; // Sunday = 7
@@ -50,8 +54,11 @@ export function getSameWeekLastYear(weekNumber: number, currentYear: number): { 
   };
 }
 
-// Get same month last year
-export function getSameMonthLastYear(month: number, year: number): { start: string; end: string } {
+// Get same month last year (accepts YYYY-MM-DD string)
+export function getSameMonthLastYear(dateStr: string): { start: string; end: string } {
+  const date = new Date(dateStr + 'T00:00:00');
+  const month = date.getMonth();
+  const year = date.getFullYear();
   const lastYear = year - 1;
   const startDate = new Date(lastYear, month, 1);
   const endDate = new Date(lastYear, month + 1, 0); // Last day of month
@@ -174,25 +181,11 @@ export function getWeekPeriod(weeksAgo: number = 0): { start: string; end: strin
   };
 }
 
-// Get yesterday's date period (for daily reports)
-export function getYesterdayPeriod(): { start: string; end: string; dateLabel: string } {
+// Get yesterday's date (for daily reports) - returns YYYY-MM-DD string
+export function getYesterdayPeriod(): string {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-
-  const dateStr = formatLocalDate(yesterday);
-
-  // Format date label in Norwegian (e.g., "4. feb 2026")
-  const months = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
-  const day = yesterday.getDate();
-  const month = months[yesterday.getMonth()];
-  const year = yesterday.getFullYear();
-  const dateLabel = `${day}. ${month} ${year}`;
-
-  return {
-    start: dateStr,
-    end: dateStr,
-    dateLabel,
-  };
+  return formatLocalDate(yesterday);
 }
 
 // YTD period (Jan 1 to today)
@@ -225,9 +218,7 @@ export function getWTDPeriod(yesterday: Date): {
   const label = daysFromMonday === 0 ? startDay : `${startDay}–${endDay}`;
 
   // YoY: same ISO week last year, same weekday range
-  const weekNumber = getWeekNumber(yesterday);
-  const yearForWeek = yesterday.getFullYear();
-  const lastYearWeek = getSameWeekLastYear(weekNumber, yearForWeek);
+  const lastYearWeek = getSameWeekLastYear(formatLocalDate(yesterday));
   // lastYearWeek is Mon-Sun, we need Mon through same relative day
   const yoyMonday = new Date(lastYearWeek.start + 'T00:00:00');
   const yoyEnd = new Date(yoyMonday);
