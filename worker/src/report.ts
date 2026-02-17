@@ -39,7 +39,7 @@ function getRandomMessage(messages: string[]): string {
   return messages[Math.floor(Math.random() * messages.length)];
 }
 
-const OUTRO = `Chat with claude.ai — add this connector and call it _Marketing Kitty_: \`https://marketing-slack-bot.seoblogbot.workers.dev/sse\`, then ask: "What can Marketing Kitty help me with?" to list all the functions :meow_fluffy-deal-with-it:`;
+const OUTRO = `Chat with Claude\u2024ai — add this connector and call it _Marketing Kitty_: \`https://marketing-slack-bot.seoblogbot.workers.dev/sse\`, then ask: "What can Marketing Kitty help me with?" to list all the functions :meow_fluffy-deal-with-it:`;
 
 // =============================================================================
 // BLOCK HELPERS
@@ -76,7 +76,8 @@ export function generateDailyReport(data: DailyReportData): SlackBlock[][] {
 
   // Title + date + greeting
   blocks.push(header('🚀 DAILY MARKETING REPORT'));
-  blocks.push(section(`_${formatDate(data.date)}_\n\n${getRandomMessage(DAILY_MESSAGES)}`));
+  blocks.push(context(formatDate(data.date)));
+  blocks.push(section(getRandomMessage(DAILY_MESSAGES)));
 
   // Main metrics
   blocks.push(section(`*⚡ MAIN METRICS — ${formatDate(data.date)}*`));
@@ -84,7 +85,8 @@ export function generateDailyReport(data: DailyReportData): SlackBlock[][] {
 
   // Channel breakdown
   if (data.countries.some(c => c.channels.length > 0)) {
-    blocks.push(section('*📊 CHANNEL BREAKDOWN*\n_Market · Channel Spend · Channel ROAS · Share of spend (only markets and channels with spend)_'));
+    blocks.push(section('*📊 CHANNEL BREAKDOWN*'));
+    blocks.push(context('Market · Channel Spend · Channel ROAS · Share of spend (only markets and channels with spend)'));
     blocks.push(codeBlock(formatChannelBreakdownInline(data.countries)));
   }
 
@@ -104,7 +106,7 @@ export function generateDailyReport(data: DailyReportData): SlackBlock[][] {
   if (data.noSpendCountries.length > 0) {
     footerParts.push(`⚠️ No spend: ${data.noSpendCountries.join(', ')} — check TW setup`);
   }
-  blocks.push(context(footerParts.join('\n')));
+  blocks.push(context(footerParts.join(' ')));
 
   return [blocks];
 }
@@ -119,7 +121,8 @@ export function generateWeeklyReport(data: WeeklyReportData): SlackBlock[][] {
 
   // Title + date range + greeting
   blocks.push(header('🚀 WEEKLY MARKETING REPORT'));
-  blocks.push(section(`_Week ${data.weekNumber}, ${data.year} — ${formatDateRange(data.startDate, data.endDate)}_\n\n${getRandomMessage(WEEKLY_MESSAGES)}`));
+  blocks.push(context(`Week ${data.weekNumber}, ${data.year} — ${formatDateRange(data.startDate, data.endDate)}`));
+  blocks.push(section(getRandomMessage(WEEKLY_MESSAGES)));
 
   // Main table
   blocks.push(section(`*⚡ MAIN METRICS — Week ${data.weekNumber}, ${data.year}*`));
@@ -158,11 +161,11 @@ export function generateWeeklyReport(data: WeeklyReportData): SlackBlock[][] {
     mtdBlocks.push(section(`*📅 MONTH TO DATE (${data.mtd.label})*`));
     mtdBlocks.push(codeBlock(formatMainTable(data.mtd.countries, data.mtd.totals)));
     mtdBlocks.push(context(OUTRO));
-    mtdBlocks.push(context(footerParts.join('\n')));
+    mtdBlocks.push(context(footerParts.join(' ')));
     messages.push(mtdBlocks);
   } else {
     blocks.push(context(OUTRO));
-    blocks.push(context(footerParts.join('\n')));
+    blocks.push(context(footerParts.join(' ')));
     messages.push(blocks);
   }
 
@@ -181,7 +184,8 @@ export function generateMonthlyReport(data: MonthlyReportData): SlackBlock[][] {
 
   const monthName = getMonthName(data.month);
   blocks.push(header('🚀 MONTHLY MARKETING REPORT'));
-  blocks.push(section(`_${monthName} ${data.year}_\n\n${getRandomMessage(MONTHLY_MESSAGES)}`));
+  blocks.push(context(`${monthName} ${data.year}`));
+  blocks.push(section(getRandomMessage(MONTHLY_MESSAGES)));
 
   // Main table
   blocks.push(section(`*⚡ MAIN METRICS — ${monthName} ${data.year}*`));
@@ -213,13 +217,13 @@ export function generateMonthlyReport(data: MonthlyReportData): SlackBlock[][] {
       }
     }
     channelBlocks.push(context(OUTRO));
-    channelBlocks.push(context(footerParts.join('\n')));
+    channelBlocks.push(context(footerParts.join(' ')));
     messages.push(channelBlocks);
   } else {
     // No channel tables — add outro + footer to main message
     const mainBlocks = messages[0];
     mainBlocks.push(context(OUTRO));
-    mainBlocks.push(context(footerParts.join('\n')));
+    mainBlocks.push(context(footerParts.join(' ')));
   }
 
   return messages;
