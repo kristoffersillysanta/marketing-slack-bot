@@ -150,8 +150,8 @@ export function getPreviousMonthPeriod(): { start: string; end: string; month: n
 
 // Get month period for a specific month/year
 export function getMonthPeriod(month: number, year: number): { start: string; end: string } {
-  const startDate = new Date(year, month, 1);
-  const endDate = new Date(year, month + 1, 0); // Last day of month
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0); // Last day of month
 
   return {
     start: formatLocalDate(startDate),

@@ -1,6 +1,7 @@
 name = "marketing-slack-bot"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 [triggers]
 # Schedule (UTC → Norwegian time):
@@ -15,6 +16,7 @@ TIMEZONE = "Europe/Oslo"
 
 # Secrets (set via wrangler secret put):
 # - SLACK_WEBHOOK_URL_MARKETING
+# - SLACK_WEBHOOK_URL_MARKETING_TEST
 # - GOOGLE_SERVICE_ACCOUNT (full JSON from service account file)
 
 [observability]

@@ -1,12 +1,14 @@
+import { SlackBlock } from './types';
+
 export interface SlackMessage {
   text?: string;
-  blocks?: any[];
+  blocks?: SlackBlock[];
   channel?: string;
   username?: string;
   icon_emoji?: string;
 }
 
-export async function sendToSlack(
+async function sendToSlack(
   webhookUrl: string,
   message: SlackMessage
 ): Promise<boolean> {
@@ -35,11 +37,22 @@ export async function sendToSlack(
   }
 }
 
-export async function sendReport(
+export async function sendBlockMessage(
   webhookUrl: string,
-  reportText: string
+  blocks: SlackBlock[],
+  fallbackText: string = 'Marketing Report'
 ): Promise<boolean> {
   return sendToSlack(webhookUrl, {
-    text: reportText,
+    text: fallbackText,
+    blocks,
   });
+}
+
+export async function sendBlockMessages(
+  webhookUrl: string,
+  messages: SlackBlock[][]
+): Promise<void> {
+  for (const blocks of messages) {
+    await sendBlockMessage(webhookUrl, blocks);
+  }
 }

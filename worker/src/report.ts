@@ -1,4 +1,4 @@
-import { DailyReportData, WeeklyReportData, MonthlyReportData } from './types';
+import { DailyReportData, WeeklyReportData, MonthlyReportData, SlackBlock } from './types';
 import {
   formatMainTable,
   formatChannelBreakdownInline,
@@ -14,131 +14,132 @@ import {
 // =============================================================================
 
 const DAILY_MESSAGES = [
-  "Meow <!channel> 🐱 Kitty checked your numbers overnight. Here:",
-  "pspsps <!channel> daily marketing report. You're welcome 🐈",
-  "Good morning <!channel> 😼 Kitty watched your campaigns yesterday. Here's what happened:",
-  "Another day, another report <!channel> 🐾 Kitty delivered. As always:",
-  "Kitty walked across the keyboard and accidentally pulled your daily report <!channel> Here 🐱",
+  "Meow <!channel> :fat_cat: Kitty checked your numbers overnight. Here:",
+  "pspsps <!channel> daily marketing report. You're welcome :meow_fluffy-deal-with-it:",
+  "Good morning <!channel> :meow_party: Kitty watched your campaigns yesterday. Here's what happened:",
+  "Another day, another report <!channel> :fat_cat: Kitty delivered. As always:",
+  "Kitty walked across the keyboard and accidentally pulled your daily report <!channel> Here :meow_fluffy-deal-with-it:",
 ];
 
 const WEEKLY_MESSAGES = [
-  "Meow meow <!channel> 😼 Kitty has been smashing the keyboard all week. Here's what came out:",
-  "Weekly report time <!channel> 🐾 Kitty sat on the laptop all week watching your numbers:",
-  "pspsps <!channel> Kitty tracked everything this week. You're welcome 🐱",
-  "Seven days of keyboard smashing later <!channel> here's your weekly report 🐈",
+  "Meow meow <!channel> :meow_party: Kitty has been smashing the keyboard all week. Here's what came out:",
+  "Weekly report time <!channel> :fat_cat: Kitty sat on the laptop all week watching your numbers:",
+  "pspsps <!channel> Kitty tracked everything this week. You're welcome :meow_fluffy-deal-with-it:",
+  "Seven days of keyboard smashing later <!channel> here's your weekly report :meow_party:",
 ];
 
 const MONTHLY_MESSAGES = [
-  "MEOW <!channel> 🐱🐱🐱 Kitty has been hoarding data all month. Here:",
-  "30 days of keyboard smashing <!channel> and this is what Kitty found 😼",
-  "The big one <!channel> 🐾 Kitty spent a whole month on this. You may pet me now:",
-  "Monthly report time <!channel> Kitty walked across every spreadsheet this month. Fine, you can have it 🐈",
+  "MEOW <!channel> :fat_cat::fat_cat::fat_cat: Kitty has been hoarding data all month. Here:",
+  "30 days of keyboard smashing <!channel> and this is what Kitty found :meow_party:",
+  "The big one <!channel> :fat_cat: Kitty spent a whole month on this. You may pet me now:",
+  "Monthly report time <!channel> Kitty walked across every spreadsheet this month. Fine, you can have it :meow_fluffy-deal-with-it:",
 ];
 
 function getRandomMessage(messages: string[]): string {
   return messages[Math.floor(Math.random() * messages.length)];
 }
 
+const OUTRO = `Chat with claude.ai — add this connector and call it _Marketing Kitty_: \`https://marketing-slack-bot.seoblogbot.workers.dev/sse\`, then ask: "What can Marketing Kitty help me with?" to list all the functions :meow_fluffy-deal-with-it:`;
+
+// =============================================================================
+// BLOCK HELPERS
+// =============================================================================
+
+function header(text: string): SlackBlock {
+  return { type: 'header', text: { type: 'plain_text', text, emoji: true } };
+}
+
+function section(text: string): SlackBlock {
+  return { type: 'section', text: { type: 'mrkdwn', text } };
+}
+
+function context(text: string): SlackBlock {
+  return { type: 'context', elements: [{ type: 'mrkdwn', text }] };
+}
+
+function codeBlock(content: string): SlackBlock {
+  return {
+    type: 'rich_text',
+    elements: [{
+      type: 'rich_text_preformatted',
+      elements: [{ type: 'text', text: content }],
+    }],
+  };
+}
+
 // =============================================================================
 // DAILY REPORT
 // =============================================================================
 
-/**
- * Generate daily marketing report
- * Purpose: "Are we spending what we should?"
- * @param data Daily report data
- * @returns Formatted Slack message
- */
-export function generateDailyReport(data: DailyReportData): string {
-  let report = '';
+export function generateDailyReport(data: DailyReportData): SlackBlock[][] {
+  const blocks: SlackBlock[] = [];
 
-  // Header
-  report += `*🚀 DAILY MARKETING REPORT*\n`;
-  report += `_${formatDate(data.date)}_\n\n`;
+  // Title + date + greeting
+  blocks.push(header('🚀 DAILY MARKETING REPORT'));
+  blocks.push(section(`_${formatDate(data.date)}_\n\n${getRandomMessage(DAILY_MESSAGES)}`));
 
-  // Context message
-  report += getRandomMessage(DAILY_MESSAGES) + '\n\n';
+  // Main metrics
+  blocks.push(section(`*⚡ MAIN METRICS — ${formatDate(data.date)}*`));
+  blocks.push(codeBlock(formatMainTable(data.countries, data.totals, false)));
 
-  // Main table with header (no YoY for daily)
-  report += `*⚡ MAIN METRICS — ${formatDate(data.date)}*\n\n`;
-  report += '```\n';
-  report += formatMainTable(data.countries, data.totals, false);
-  report += '```\n\n';
-
-  // Channel breakdown (inline with Channel ROAS only)
+  // Channel breakdown
   if (data.countries.some(c => c.channels.length > 0)) {
-    report += '*📊 CHANNEL BREAKDOWN*\n';
-    report += '_Market · Channel Spend · Channel ROAS · Share of spend (only markets and channels with spend)_\n\n';
-    report += '```\n';
-    report += formatChannelBreakdownInline(data.countries) + '\n';
-    report += '```\n\n';
+    blocks.push(section('*📊 CHANNEL BREAKDOWN*\n_Market · Channel Spend · Channel ROAS · Share of spend (only markets and channels with spend)_'));
+    blocks.push(codeBlock(formatChannelBreakdownInline(data.countries)));
   }
 
   // WTD (Week-to-Date) — Wed-Fri only
   if (data.wtd) {
-    report += `*📅 WEEK TO DATE (${data.wtd.label})*\n\n`;
-    report += '```\n';
-    report += formatMainTable(data.wtd.countries, data.wtd.totals, false);
-    report += '```\n\n';
+    blocks.push(section(`*📅 WEEK TO DATE (${data.wtd.label})*`));
+    blocks.push(codeBlock(formatMainTable(data.wtd.countries, data.wtd.totals, false)));
   }
 
-  // Condensed footer (one line, only relevant info)
+  // Outro
+  blocks.push(context(OUTRO));
+
+  // Footer as context
   const footerParts = [];
   footerParts.push('💡 ROAS is channel-reported (platform\'s own numbers). Pixel ROAS updated in weekly.');
   footerParts.push('💰 Revenue figures include VAT (gross). Spend is ex-VAT.');
   if (data.noSpendCountries.length > 0) {
     footerParts.push(`⚠️ No spend: ${data.noSpendCountries.join(', ')} — check TW setup`);
   }
-  report += `_${footerParts.join(' ')}_\n`;
+  blocks.push(context(footerParts.join('\n')));
 
-  return report;
+  return [blocks];
 }
 
 // =============================================================================
 // WEEKLY REPORT (split into multiple messages)
 // =============================================================================
 
-/**
- * Generate weekly marketing report
- * Purpose: "Is something wrong?"
- * @param data Weekly report data
- * @returns Array of Slack messages (main report + MTD if applicable)
- */
-export function generateWeeklyReport(data: WeeklyReportData): string[] {
-  const messages: string[] = [];
-  let report = '';
+export function generateWeeklyReport(data: WeeklyReportData): SlackBlock[][] {
+  const messages: SlackBlock[][] = [];
+  const blocks: SlackBlock[] = [];
 
-  // Header
-  report += `*🚀 WEEKLY MARKETING REPORT*\n`;
-  report += `_Week ${data.weekNumber}, ${data.year} — ${formatDateRange(data.startDate, data.endDate)}_\n\n`;
-
-  // Context message
-  report += getRandomMessage(WEEKLY_MESSAGES) + '\n\n';
+  // Title + date range + greeting
+  blocks.push(header('🚀 WEEKLY MARKETING REPORT'));
+  blocks.push(section(`_Week ${data.weekNumber}, ${data.year} — ${formatDateRange(data.startDate, data.endDate)}_\n\n${getRandomMessage(WEEKLY_MESSAGES)}`));
 
   // Main table
-  report += '```\n';
-  report += formatMainTable(data.countries, data.totals);
-  report += '```\n\n';
+  blocks.push(section(`*⚡ MAIN METRICS — Week ${data.weekNumber}, ${data.year}*`));
+  blocks.push(codeBlock(formatMainTable(data.countries, data.totals)));
 
   // 3-week trend
   if (data.trend.length > 0) {
-    report += '*📈 3-WEEK TREND*\n\n';
-    report += '```\n';
-    report += formatTrendTable(data.trend, 'weekly');
-    report += '```\n\n';
+    blocks.push(section('*📈 3-WEEK TREND*'));
+    blocks.push(codeBlock(formatTrendTable(data.trend, 'weekly')));
   }
 
-  // Channel tables per country (Pixel + Channel + NC ROAS)
+  // Channel tables per country
   for (const country of data.countries) {
     if (country.channels.length > 0) {
-      report += `*🔍 CHANNELS — ${country.shop.flag} ${country.shop.code}*\n\n`;
-      report += '```\n';
-      report += formatChannelTable(country, false); // No NC Orders in weekly
-      report += '```\n\n';
+      blocks.push(section(`*🔍 CHANNELS — ${country.shop.flag} ${country.shop.code}*`));
+      blocks.push(codeBlock(formatChannelTable(country, false)));
     }
   }
 
-  // Build footer
+  // Footer parts
   const footerParts = [];
   if (data.pixelDataIncomplete) {
     footerParts.push('⏱️ Pixel data may update 1-3 days after week end. Saturday/Sunday numbers may be incomplete.');
@@ -147,22 +148,22 @@ export function generateWeeklyReport(data: WeeklyReportData): string[] {
   if (data.noSpendCountries.length > 0) {
     footerParts.push(`⚠️ No spend: ${data.noSpendCountries.join(', ')} — check TW setup`);
   }
-  const footer = `_${footerParts.join(' ')}_\n`;
 
   if (data.mtd) {
-    // No footer on first message — it goes on the MTD message
-    messages.push(report);
+    // First message: main report without footer
+    messages.push([...blocks]);
 
-    let mtdMsg = '';
-    mtdMsg += `*📅 MONTH TO DATE (${data.mtd.label})*\n\n`;
-    mtdMsg += '```\n';
-    mtdMsg += formatMainTable(data.mtd.countries, data.mtd.totals);
-    mtdMsg += '```\n\n';
-    mtdMsg += footer;
-    messages.push(mtdMsg);
+    // Second message: MTD + outro + footer
+    const mtdBlocks: SlackBlock[] = [];
+    mtdBlocks.push(section(`*📅 MONTH TO DATE (${data.mtd.label})*`));
+    mtdBlocks.push(codeBlock(formatMainTable(data.mtd.countries, data.mtd.totals)));
+    mtdBlocks.push(context(OUTRO));
+    mtdBlocks.push(context(footerParts.join('\n')));
+    messages.push(mtdBlocks);
   } else {
-    report += footer;
-    messages.push(report);
+    blocks.push(context(OUTRO));
+    blocks.push(context(footerParts.join('\n')));
+    messages.push(blocks);
   }
 
   return messages;
@@ -172,60 +173,53 @@ export function generateWeeklyReport(data: WeeklyReportData): string[] {
 // MONTHLY REPORT (split into multiple messages)
 // =============================================================================
 
-/**
- * Generate monthly marketing report
- * Purpose: "What should we adjust?"
- * @param data Monthly report data
- * @returns Array of Slack messages (main report + channel tables)
- */
-export function generateMonthlyReport(data: MonthlyReportData): string[] {
-  const messages: string[] = [];
-  let report = '';
+export function generateMonthlyReport(data: MonthlyReportData): SlackBlock[][] {
+  const messages: SlackBlock[][] = [];
 
-  // Header
+  // --- Message 1: Main report ---
+  const blocks: SlackBlock[] = [];
+
   const monthName = getMonthName(data.month);
-  report += `*🚀 MONTHLY MARKETING REPORT*\n`;
-  report += `_${monthName} ${data.year}_\n\n`;
-
-  // Context message
-  report += getRandomMessage(MONTHLY_MESSAGES) + '\n\n';
+  blocks.push(header('🚀 MONTHLY MARKETING REPORT'));
+  blocks.push(section(`_${monthName} ${data.year}_\n\n${getRandomMessage(MONTHLY_MESSAGES)}`));
 
   // Main table
-  report += '```\n';
-  report += formatMainTable(data.countries, data.totals);
-  report += '```\n\n';
+  blocks.push(section(`*⚡ MAIN METRICS — ${monthName} ${data.year}*`));
+  blocks.push(codeBlock(formatMainTable(data.countries, data.totals)));
 
   // 3-month trend
   if (data.trend.length > 0) {
-    report += '*📈 3-MONTH TREND*\n\n';
-    report += '```\n';
-    report += formatTrendTable(data.trend, 'monthly');
-    report += '```\n\n';
+    blocks.push(section('*📈 3-MONTH TREND*'));
+    blocks.push(codeBlock(formatTrendTable(data.trend, 'monthly')));
   }
 
-  // Condensed footer (one line, only relevant info)
+  messages.push(blocks);
+
+  // Footer parts
   const footerParts = [];
   footerParts.push('💰 Revenue figures include VAT (gross). Spend is ex-VAT.');
   if (data.noSpendCountries.length > 0) {
     footerParts.push(`⚠️ No spend: ${data.noSpendCountries.join(', ')} — check TW setup`);
   }
-  report += `_${footerParts.join(' ')}_\n`;
 
-  messages.push(report);
-
-  // Channel tables as separate message
+  // --- Message 2: Channel tables (if any) ---
   const hasChannels = data.countries.some(c => c.channels.length > 0);
   if (hasChannels) {
-    let channelMsg = '';
+    const channelBlocks: SlackBlock[] = [];
     for (const country of data.countries) {
       if (country.channels.length > 0) {
-        channelMsg += `*🔍 CHANNELS — ${country.shop.flag} ${country.shop.code}*\n\n`;
-        channelMsg += '```\n';
-        channelMsg += formatChannelTable(country, true); // Include NC Orders in monthly
-        channelMsg += '```\n\n';
+        channelBlocks.push(section(`*🔍 CHANNELS — ${country.shop.flag} ${country.shop.code}*`));
+        channelBlocks.push(codeBlock(formatChannelTable(country, true)));
       }
     }
-    messages.push(channelMsg.trim());
+    channelBlocks.push(context(OUTRO));
+    channelBlocks.push(context(footerParts.join('\n')));
+    messages.push(channelBlocks);
+  } else {
+    // No channel tables — add outro + footer to main message
+    const mainBlocks = messages[0];
+    mainBlocks.push(context(OUTRO));
+    mainBlocks.push(context(footerParts.join('\n')));
   }
 
   return messages;

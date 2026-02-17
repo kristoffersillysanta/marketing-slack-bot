@@ -11,19 +11,14 @@ import {
   getWTDPeriod,
   getMTDPeriod,
 } from './triplewhale';
-import { sendReport } from './slack';
+import { sendBlockMessages } from './slack';
 import { loadAllMarketingData, getAllCountryMetrics, getCountriesWithoutSpend } from './data';
 import { calculateWeightedTotals, isPixelDataIncomplete } from './metrics';
 import { generateDailyReport, generateWeeklyReport, generateMonthlyReport } from './report';
-import { DailyReportData, WeeklyReportData, MonthlyReportData, TrendData, CountryMarketingMetrics } from './types';
+import { Env, SlackBlock, DailyReportData, WeeklyReportData, MonthlyReportData, TrendData, CountryMarketingMetrics } from './types';
 import { ServiceAccountCredentials } from './sheets';
 import { getMonthName } from './formatting';
-
-export interface Env {
-  SLACK_WEBHOOK_URL_MARKETING: string;
-  GOOGLE_SERVICE_ACCOUNT: string;
-  TIMEZONE: string;
-}
+import { handleMCPRequest, handleMCPSSE } from './mcp/server';
 
 // Parse Google credentials from environment
 function getGoogleCredentials(env: Env): ServiceAccountCredentials {
@@ -40,18 +35,25 @@ function getTotalPrevYearRevenue(countries: CountryMarketingMetrics[]): number |
   return total > 0 ? total : null;
 }
 
-// Send multiple Slack messages sequentially
-async function sendMessages(webhookUrl: string, messages: string[]): Promise<void> {
-  for (const msg of messages) {
-    await sendReport(webhookUrl, msg);
-  }
+// Helper: convert blocks to plain text for preview endpoints
+function blocksToText(messages: SlackBlock[][]): string {
+  return messages.map(blocks =>
+    blocks.map(block => {
+      if (block.type === 'header') return `\n=== ${block.text.text} ===\n`;
+      if (block.type === 'section') return block.text.text;
+      if (block.type === 'context') return block.elements.map(e => e.text).join('\n');
+      if (block.type === 'rich_text') return '```\n' + block.elements.map(e => e.elements.map(t => t.text).join('')).join('') + '```';
+      if (block.type === 'divider') return '---';
+      return '';
+    }).join('\n')
+  ).join('\n\n---\n\n');
 }
 
 // =============================================================================
 // DAILY REPORT
 // =============================================================================
 
-async function sendDailyReport(env: Env): Promise<void> {
+async function sendDailyReport(env: Env, webhookUrl?: string): Promise<void> {
   console.log('Generating daily marketing report...');
 
   const credentials = getGoogleCredentials(env);
@@ -120,8 +122,8 @@ async function sendDailyReport(env: Env): Promise<void> {
     };
   }
 
-  const report = generateDailyReport(reportData);
-  await sendReport(env.SLACK_WEBHOOK_URL_MARKETING, report);
+  const messages = generateDailyReport(reportData);
+  await sendBlockMessages(webhookUrl ?? env.SLACK_WEBHOOK_URL_MARKETING, messages);
   console.log('Daily report sent!');
 }
 
@@ -129,7 +131,7 @@ async function sendDailyReport(env: Env): Promise<void> {
 // WEEKLY REPORT
 // =============================================================================
 
-async function sendWeeklyReport(env: Env): Promise<void> {
+async function sendWeeklyReport(env: Env, webhookUrl?: string): Promise<void> {
   console.log('Generating weekly marketing report...');
 
   const credentials = getGoogleCredentials(env);
@@ -223,7 +225,7 @@ async function sendWeeklyReport(env: Env): Promise<void> {
   }
 
   const messages = generateWeeklyReport(reportData);
-  await sendMessages(env.SLACK_WEBHOOK_URL_MARKETING, messages);
+  await sendBlockMessages(webhookUrl ?? env.SLACK_WEBHOOK_URL_MARKETING, messages);
   console.log('Weekly report sent!');
 }
 
@@ -231,7 +233,7 @@ async function sendWeeklyReport(env: Env): Promise<void> {
 // MONTHLY REPORT
 // =============================================================================
 
-async function sendMonthlyReport(env: Env): Promise<void> {
+async function sendMonthlyReport(env: Env, webhookUrl?: string): Promise<void> {
   console.log('Generating monthly marketing report...');
 
   const credentials = getGoogleCredentials(env);
@@ -309,7 +311,7 @@ async function sendMonthlyReport(env: Env): Promise<void> {
   };
 
   const messages = generateMonthlyReport(reportData);
-  await sendMessages(env.SLACK_WEBHOOK_URL_MARKETING, messages);
+  await sendBlockMessages(webhookUrl ?? env.SLACK_WEBHOOK_URL_MARKETING, messages);
   console.log('Monthly report sent!');
 }
 
@@ -364,8 +366,8 @@ async function previewDailyReport(env: Env): Promise<Response> {
     },
   };
 
-  const report = generateDailyReport(reportData);
-  return new Response(report, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  const messages = generateDailyReport(reportData);
+  return new Response(blocksToText(messages), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
 
 async function previewWeeklyReport(env: Env): Promise<Response> {
@@ -443,7 +445,7 @@ async function previewWeeklyReport(env: Env): Promise<Response> {
   }
 
   const messages = generateWeeklyReport(reportData);
-  return new Response(messages.join('\n\n---\n\n'), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  return new Response(blocksToText(messages), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
 
 async function previewMonthlyReport(env: Env): Promise<Response> {
@@ -507,7 +509,7 @@ async function previewMonthlyReport(env: Env): Promise<Response> {
   };
 
   const messages = generateMonthlyReport(reportData);
-  return new Response(messages.join('\n\n---\n\n'), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+  return new Response(blocksToText(messages), { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
 }
 
 // =============================================================================
@@ -518,23 +520,31 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    // MCP endpoints
+    if (url.pathname === '/sse') {
+      return handleMCPSSE(request, env);
+    }
+    if (url.pathname === '/mcp') {
+      return handleMCPRequest(request, env);
+    }
+
     // Preview endpoints
     if (url.pathname === '/preview-daily') return await previewDailyReport(env);
     if (url.pathname === '/preview-weekly') return await previewWeeklyReport(env);
     if (url.pathname === '/preview-monthly') return await previewMonthlyReport(env);
 
-    // Send test endpoints
+    // Send test endpoints (uses test webhook)
     if (url.pathname === '/send-daily') {
-      await sendDailyReport(env);
-      return new Response('Daily report sent to Slack!', { status: 200 });
+      await sendDailyReport(env, env.SLACK_WEBHOOK_URL_MARKETING_TEST);
+      return new Response('Daily report sent to test channel!', { status: 200 });
     }
     if (url.pathname === '/send-weekly') {
-      await sendWeeklyReport(env);
-      return new Response('Weekly report sent to Slack!', { status: 200 });
+      await sendWeeklyReport(env, env.SLACK_WEBHOOK_URL_MARKETING_TEST);
+      return new Response('Weekly report sent to test channel!', { status: 200 });
     }
     if (url.pathname === '/send-monthly') {
-      await sendMonthlyReport(env);
-      return new Response('Monthly report sent to Slack!', { status: 200 });
+      await sendMonthlyReport(env, env.SLACK_WEBHOOK_URL_MARKETING_TEST);
+      return new Response('Monthly report sent to test channel!', { status: 200 });
     }
 
     return new Response('Marketing Slack Bot', { status: 200 });

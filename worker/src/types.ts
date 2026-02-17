@@ -1,6 +1,43 @@
 import { Shop } from './shops';
 
 // =============================================================================
+// ENVIRONMENT
+// =============================================================================
+
+export interface Env {
+  SLACK_WEBHOOK_URL_MARKETING: string;
+  SLACK_WEBHOOK_URL_MARKETING_TEST: string;
+  GOOGLE_SERVICE_ACCOUNT: string;
+  TIMEZONE: string;
+}
+
+// =============================================================================
+// SLACK BLOCK KIT TYPES
+// =============================================================================
+
+export type SlackBlock =
+  | { type: 'header'; text: { type: 'plain_text'; text: string; emoji: boolean } }
+  | { type: 'section'; text: { type: 'mrkdwn'; text: string } }
+  | { type: 'context'; elements: Array<{ type: 'mrkdwn'; text: string }> }
+  | { type: 'rich_text'; elements: Array<{ type: 'rich_text_preformatted'; elements: Array<{ type: 'text'; text: string }> }> }
+  | { type: 'divider' };
+
+// =============================================================================
+// MCP TYPES
+// =============================================================================
+
+export interface MCPToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+export interface MCPResponse {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+}
+
+// =============================================================================
 // CHANNEL METRICS
 // =============================================================================
 
