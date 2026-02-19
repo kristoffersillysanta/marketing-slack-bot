@@ -136,6 +136,31 @@ export interface MarketingDailyMetrics {
 // DATA LOADING (one API call per shop)
 // =============================================================================
 
+// Fetch with retry for transient errors (5xx, 429)
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries: number = 3
+): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.ok) return response;
+
+    const isRetryable = response.status >= 500 || response.status === 429;
+    if (!isRetryable || attempt === maxRetries) {
+      return response; // Return the failed response for caller to handle
+    }
+
+    const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+    console.log(`⏳ ${response.status} — retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxRetries})`);
+    await new Promise(r => setTimeout(r, delay));
+  }
+
+  // Should never reach here, but TypeScript needs it
+  return fetch(url, options);
+}
+
 // Read ALL metrics from a shop tab (no date filtering — load once, filter locally)
 async function readAllShopMetrics(
   accessToken: string,
@@ -144,7 +169,7 @@ async function readAllShopMetrics(
   const range = encodeURIComponent(`'${shopCode}'!A:Z`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}`;
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
